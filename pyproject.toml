@@ -1,0 +1,25 @@
+[project]
+name = "confinit"
+version = "0.1.0"
+description = "A lightweight, typed, multi-source configuration loader with stdlib-first design, deterministic precedence, and debug-friendly provenance."
+readme = "README.md"
+authors = [
+    { name = "Manoah Bernier", email = "manoah.bernier@pm.me" }
+]
+requires-python = ">=3.13"
+dependencies = []
+
+[project.scripts]
+confinit = "confinit:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.17.1",
+    "pytest>=8.4.2",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.12.12",
+]
