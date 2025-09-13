@@ -1,13 +1,49 @@
+"""Confinit public API.
+
+Primary entry points
+- load: Resolve a dataclass schema from multiple sources.
+- env / dotenv / file: Built-in sources.
+- Errors and types: ConfinitError, MissingValue, TypeConversionError, ConfSourceError, SourceInfo.
+
+Runtime version
+- __version__ is detected from installed metadata; when running from source,
+  falls back to reading ``pyproject.toml``.
+"""
+
 from __future__ import annotations
 
 from importlib.metadata import PackageNotFoundError, version as _pkg_version
 from pathlib import Path
 import tomllib
 
-__all__ = ["__version__", "main", "_detect_version"]
+from .errors import ConfSourceError, ConfinitError, MissingValue, TypeConversionError
+from .types import SourceInfo
+from .sources import env, dotenv, file
+from .loader import load
+
+__all__ = [
+    "__version__",
+    "main",
+    "_detect_version",
+    # public API
+    "load",
+    "env",
+    "dotenv",
+    "file",
+    "ConfinitError",
+    "MissingValue",
+    "TypeConversionError",
+    "ConfSourceError",
+    "SourceInfo",
+]
 
 
 def _detect_version() -> str:
+    """Return the runtime package version.
+
+    Tries installed metadata first; if unavailable (running from source),
+    falls back to reading ``pyproject.toml`` at the repository root.
+    """
     try:
         return _pkg_version("confinit")
     except PackageNotFoundError:
@@ -29,4 +65,5 @@ __version__: str = _detect_version()
 
 
 def main() -> None:
-    print("Hello from confinit!")
+    """CLI entrypoint used for a quick sanity run."""
+    print("confinit: v{}".format(__version__))
