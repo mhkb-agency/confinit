@@ -28,6 +28,7 @@ def test_detect_version_default_when_no_pyproject(monkeypatch):
     class Dummy:
         def __init__(self, *args, **kwargs):
             pass
+
         def resolve(self):
             return self
 
@@ -45,9 +46,11 @@ def test_detect_version_default_when_no_pyproject(monkeypatch):
             raise AssertionError("should not read text when file does not exist")
 
     monkeypatch.setattr(confinit, "Path", Dummy)
+
     # Also ensure importlib metadata path is not taken
     def _raise(_name: str) -> str:  # type: ignore[return-type]
         raise confinit.PackageNotFoundError
+
     monkeypatch.setattr(confinit, "_pkg_version", _raise)
     assert confinit._detect_version() == "0.0.0"
 
