@@ -58,7 +58,7 @@ def test_detect_version_default_when_no_pyproject(monkeypatch):
 def test_main_prints_greeting(capsys):
     confinit.main()
     out = capsys.readouterr().out.strip()
-    assert out == "Hello from confinit!"
+    assert out == "confinit: v{}".format(confinit.__version__)
 
 
 def test_version_matches_pyproject() -> None:
