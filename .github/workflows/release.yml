@@ -39,24 +39,6 @@ jobs:
       - name: Sync dev dependencies
         run: uv sync --group dev
 
-      - name: Bootstrap initial tag if missing
-        run: |
-          if [ -z "$(git tag -l 'v*')" ]; then
-            echo "No release tags found; bootstrapping from pyproject.toml"
-            VER=$(python - <<'PY'
-            import tomllib, pathlib
-            data = tomllib.loads(pathlib.Path('pyproject.toml').read_text(encoding='utf-8'))
-            print(data['project']['version'])
-            PY
-            )
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git tag -a "v${VER}" -m "chore(release): ${VER} (bootstrap)"
-            git push origin "v${VER}"
-          else
-            echo "Existing release tags found; skipping bootstrap"
-          fi
-
       - name: Run semantic-release (with optional dry-run)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
