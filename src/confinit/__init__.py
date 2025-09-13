@@ -4,7 +4,7 @@ from importlib.metadata import PackageNotFoundError, version as _pkg_version
 from pathlib import Path
 import tomllib
 
-__all__ = ["__version__"]
+__all__ = ["__version__", "main", "_detect_version"]
 
 
 def _detect_version() -> str:
@@ -26,3 +26,7 @@ def _detect_version() -> str:
 
 
 __version__: str = _detect_version()
+
+
+def main() -> None:
+    print("Hello from confinit!")
