@@ -18,8 +18,18 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
+    "hatchling>=1.27.0",
+    "python-semantic-release>=9.7.0",
     "mypy>=1.17.1",
     "pytest>=8.4.2",
     "pytest-cov>=7.0.0",
     "ruff>=0.12.12",
 ]
+
+[tool.semantic_release]
+branch = "main"
+version_toml = ["pyproject.toml:project.version"]
+changelog_file = "CHANGELOG.md"
+upload_to_pypi = false
+upload_to_release = true
+build_command = "uvx hatchling build"

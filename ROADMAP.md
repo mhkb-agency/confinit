@@ -132,7 +132,7 @@ This expands the published **MVP** (`typing`, TOML via `tomllib`, precedence, pr
 ## 11) Quality, CI/CD, & Support
 
 - **Python:** 3.11–3.13.
-- **Type-checking:** mypy + pyright gates.
+- **Type-checking:** mypy gate.
 - **Tests:** pytest with 95%+ coverage on core; property-based tests for parsers.
 - **Perf checks:** load 1k fields < 20 ms on CI; zero-alloc hot path where reasonable.
 - **Release:** SemVer; `v0.x` for rapid iteration; **`v1.0` freezes public API**.
