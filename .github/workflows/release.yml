@@ -26,6 +26,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # required for tags history
+          fetch-tags: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -41,7 +42,8 @@ jobs:
 
       - name: Run semantic-release (with optional dry-run)
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # python-semantic-release reads GH_TOKEN for GitHub operations
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           FLAGS=""
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.dry_run }}" = "true" ]; then
