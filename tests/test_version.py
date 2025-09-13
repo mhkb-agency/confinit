@@ -15,4 +15,3 @@ def test_version_matches_pyproject() -> None:
     version = data.get("project", {}).get("version")
     assert isinstance(version, str)
     assert confinit.__version__ == version
-
