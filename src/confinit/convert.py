@@ -43,7 +43,9 @@ def _convert_value(raw: Any, target: Any, field_name: str) -> Any:
                 try:
                     raw = m(raw)
                 except Exception as e:  # pragma: no cover - user decoder
-                    raise TypeConversionError(field_name, base.__name__, raw, str(e)) from e
+                    raise TypeConversionError(
+                        field_name, base.__name__, raw, str(e)
+                    ) from e
         base_target = base
         origin = get_origin(base_target)
         args = get_args(base_target)
@@ -69,8 +71,11 @@ def _convert_value(raw: Any, target: Any, field_name: str) -> Any:
         inner_val = _convert_value(raw, inner_t, field_name)
         return Secret(inner_val)
 
-    if base_target in (str, Any) or base_target is None:
+    if base_target is str:
         return raw if isinstance(raw, str) else str(raw)
+
+    if base_target is Any or base_target is None:
+        return raw
 
     if base_target is int:
         try:
@@ -99,9 +104,7 @@ def _convert_value(raw: Any, target: Any, field_name: str) -> Any:
         elem_t = (get_args(base_target) or (str,))[0]
         # If we already have a list, convert each element
         if isinstance(raw, (list, tuple)):
-            return [
-                _convert_value(v, elem_t, field_name) for v in list(raw)
-            ]
+            return [_convert_value(v, elem_t, field_name) for v in list(raw)]
         # If a string, parse JSON first, then CSV fallback
         if isinstance(raw, str):
             s = raw.strip()
@@ -127,7 +130,9 @@ def _convert_value(raw: Any, target: Any, field_name: str) -> Any:
         key_t, val_t = (get_args(base_target) or (str, Any))[:2]
         if isinstance(raw, dict):
             return {  # best-effort convert values; keys to str-like
-                _convert_value(k, key_t, field_name): _convert_value(v, val_t, field_name)
+                _convert_value(k, key_t, field_name): _convert_value(
+                    v, val_t, field_name
+                )
                 for k, v in raw.items()
             }
         if isinstance(raw, str):
@@ -140,7 +145,9 @@ def _convert_value(raw: Any, target: Any, field_name: str) -> Any:
                 except Exception as e:
                     raise TypeConversionError(field_name, "dict", raw, str(e)) from e
                 return {
-                    _convert_value(k, key_t, field_name): _convert_value(v, val_t, field_name)
+                    _convert_value(k, key_t, field_name): _convert_value(
+                        v, val_t, field_name
+                    )
                     for k, v in loaded.items()
                 }
             # Fallback: parse simple CSV of k=v pairs
@@ -157,7 +164,9 @@ def _convert_value(raw: Any, target: Any, field_name: str) -> Any:
             except Exception as e:  # pragma: no cover - unlikely
                 raise TypeConversionError(field_name, "dict", raw, str(e)) from e
             return {
-                _convert_value(k, key_t, field_name): _convert_value(v, val_t, field_name)
+                _convert_value(k, key_t, field_name): _convert_value(
+                    v, val_t, field_name
+                )
                 for k, v in pairs.items()
             }
 

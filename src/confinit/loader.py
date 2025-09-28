@@ -10,7 +10,17 @@ Key function
 from __future__ import annotations
 
 from dataclasses import MISSING, Field, fields, is_dataclass
-from typing import Any, Dict, Iterable, Tuple, Type, TypeVar, get_type_hints, cast, get_origin
+from typing import (
+    Any,
+    Dict,
+    Iterable,
+    Tuple,
+    Type,
+    TypeVar,
+    get_type_hints,
+    cast,
+    get_origin,
+)
 
 from .convert import _convert_value
 from .errors import ConfinitError, MissingValue, TypeConversionError
@@ -87,9 +97,7 @@ def load(schema: Type[T], sources: Iterable[object] | None = None) -> T:
         else:
             if f.default is not MISSING or f.default_factory is not MISSING:  # type: ignore[attr-defined]
                 target = type_hints.get(f.name, f.type)
-                raw_default = (
-                    "(factory)" if f.default is MISSING else f.default
-                )
+                raw_default = "(factory)" if f.default is MISSING else f.default
                 if _is_secret_annotation(target):
                     raw_default = "***"
                 provenance[f.name] = SourceInfo(
