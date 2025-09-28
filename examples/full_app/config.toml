@@ -1,0 +1,9 @@
+# Base configuration (lowest precedence among sources)
+workers = 3
+rate = 2.5
+data_dir = "./data"
+color = "red"
+log_levels = ["warning", "error"]
+features = { featureA = "on", retries = 1 }
+name = "TomlDefault"
+
