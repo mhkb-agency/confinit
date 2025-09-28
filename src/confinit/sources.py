@@ -1,6 +1,9 @@
-"""Built-in configuration sources: env vars, .env files, and TOML files.
+"""Built-in configuration sources: CLI args, env vars, .env files, TOML.
 
 Public factory functions
+- cli(args: list[str] | None = None): read CLI overrides like ``--key=value``
+  or ``section.key=value`` / ``KEY=V``. Highest-precedence layer when used
+  first in ``sources`` as per the documented order.
 - env(prefix: str | None = None): read environment variables (uppercase names,
   optional ``prefix`` before names).
 - dotenv(path: str, prefix: str | None = None): read key=value pairs from a
@@ -14,6 +17,7 @@ used by the loader to merge values and record provenance.
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 from typing import Any, Dict, Tuple
 import tomllib
@@ -119,6 +123,56 @@ class _TomlFileSource:
         return out
 
 
+class _CliSource:
+    def __init__(self, args: list[str] | None = None) -> None:
+        # Capture args once to make behavior deterministic for tests
+        self._args = list(args) if args is not None else sys.argv[1:]
+
+    def _parse_args(self) -> Dict[str, str]:
+        """Parse CLI args into a mapping of name -> raw string value.
+
+        Accepted forms:
+        - ``--key=value`` or ``key=value``
+        - ``key:value``
+        - dotted names like ``section.key=value`` map to ``key``
+        Duplicate keys keep first occurrence (highest priority within CLI).
+        """
+        out: Dict[str, str] = {}
+        for arg in self._args:
+            a = arg
+            if a.startswith("--"):
+                a = a[2:]
+            # Support both '=' and ':' separators
+            if "=" in a:
+                name, _, value = a.partition("=")
+            elif ":" in a:
+                name, _, value = a.partition(":")
+            else:
+                continue
+            # Take the last dotted token (section.key -> key)
+            key = name.split(".")[-1].strip()
+            if key and key not in out:
+                out[key] = value
+        return out
+
+    def collect(self, schema: type) -> CollectResult:
+        values = self._parse_args()
+        out: CollectResult = {}
+        for f in schema.__dataclass_fields__.values():  # type: ignore[attr-defined]
+            # Match case-insensitively
+            for candidate in (f.name, f.name.lower(), f.name.upper()):
+                if candidate in values:
+                    raw = values[candidate]
+                    out[f.name] = (
+                        raw,
+                        SourceInfo(
+                            kind="cli", layer=0, path=f"--{candidate}", raw_value=raw
+                        ),
+                    )
+                    break
+        return out
+
+
 def env(prefix: str | None = None) -> _EnvSource:
     """Create an environment variable source.
 
@@ -147,6 +201,15 @@ def dotenv(path: str, prefix: str | None = None) -> _DotenvSource:
 def file(path: str) -> _TomlFileSource:
     """Create a TOML file source pointing to ``path``."""
     return _TomlFileSource(path=path)
+
+
+def cli(args: list[str] | None = None) -> _CliSource:
+    """Create a CLI source reading from ``args`` (defaults to ``sys.argv[1:]``).
+
+    Place this source first in ``sources`` to achieve the documented precedence
+    of ``CLI > ENV > .env > file > defaults``.
+    """
+    return _CliSource(args=args)
 
 
 def _parse_dotenv(text: str) -> Dict[str, str]:

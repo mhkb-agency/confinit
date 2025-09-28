@@ -1,6 +1,6 @@
 [project]
 name = "confinit"
-version = "0.1.0"
+version = "0.2.0"
 description = "A lightweight, typed, multi-source configuration loader with stdlib-first design, deterministic precedence, and debug-friendly provenance."
 readme = "README.md"
 authors = [

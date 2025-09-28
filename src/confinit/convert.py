@@ -16,8 +16,11 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, get_args, get_origin
 import types as _pytypes
+import json
+import csv
 
 from .errors import TypeConversionError
+from .types import Secret, Decoder
 
 
 def _convert_value(raw: Any, target: Any, field_name: str) -> Any:
@@ -27,8 +30,23 @@ def _convert_value(raw: Any, target: Any, field_name: str) -> Any:
     bool parsing, and basic built-ins. Falls back to returning the raw
     value (or its string) when conversion is not required.
     """
-    origin = get_origin(target)
-    args = get_args(target)
+    # Unwrap typing.Annotated to collect Decoder metadata
+    base_target = target
+    origin = get_origin(base_target)
+    args = get_args(base_target)
+
+    if origin is __import__("typing").Annotated:
+        base, *meta = args
+        # Apply decoders in the order provided
+        for m in meta:
+            if isinstance(m, Decoder):
+                try:
+                    raw = m(raw)
+                except Exception as e:  # pragma: no cover - user decoder
+                    raise TypeConversionError(field_name, base.__name__, raw, str(e)) from e
+        base_target = base
+        origin = get_origin(base_target)
+        args = get_args(base_target)
 
     if origin is __import__("typing").Union or origin is getattr(
         _pytypes, "UnionType", None
@@ -41,35 +59,110 @@ def _convert_value(raw: Any, target: Any, field_name: str) -> Any:
         expected = f"Union[{', '.join(getattr(a, '__name__', str(a)) for a in args)}]"
         raise TypeConversionError(field_name, expected, raw, "unsupported union form")
 
-    if isinstance(target, type) and issubclass_safe(target, Enum):
-        return _convert_enum(raw, target, field_name)
+    if isinstance(base_target, type) and issubclass_safe(base_target, Enum):
+        return _convert_enum(raw, base_target, field_name)
 
-    if target in (str, Any) or target is None:
+    # Secret[T] wraps converted T while masking its display
+    if _is_secret_origin(base_target):
+        inner = get_args(base_target) or (str,)
+        inner_t = inner[0]
+        inner_val = _convert_value(raw, inner_t, field_name)
+        return Secret(inner_val)
+
+    if base_target in (str, Any) or base_target is None:
         return raw if isinstance(raw, str) else str(raw)
 
-    if target is int:
+    if base_target is int:
         try:
             return int(raw)
         except Exception as e:
             raise TypeConversionError(field_name, "int", raw, str(e)) from e
 
-    if target is float:
+    if base_target is float:
         try:
             return float(raw)
         except Exception as e:
             raise TypeConversionError(field_name, "float", raw, str(e)) from e
 
-    if target is bool:
+    if base_target is bool:
         return _to_bool(raw, field_name)
 
-    if isinstance(target, type) and issubclass_safe(target, Path):
+    if isinstance(base_target, type) and issubclass_safe(base_target, Path):
         try:
             return Path(raw)
         except Exception as e:
             raise TypeConversionError(field_name, "Path", raw, str(e)) from e
 
-    if isinstance(target, type):
-        if isinstance(raw, target):  # type: ignore[arg-type]
+    # Lists and dicts from ENV (string) or pass-through from TOML
+    if origin in (list, tuple) or str(origin).endswith("typing.List"):
+        # Determine element type (default to str)
+        elem_t = (get_args(base_target) or (str,))[0]
+        # If we already have a list, convert each element
+        if isinstance(raw, (list, tuple)):
+            return [
+                _convert_value(v, elem_t, field_name) for v in list(raw)
+            ]
+        # If a string, parse JSON first, then CSV fallback
+        if isinstance(raw, str):
+            s = raw.strip()
+            seq: list[Any]
+            if s.startswith("[") and s.endswith("]"):
+                try:
+                    loaded = json.loads(s)
+                    if not isinstance(loaded, list):
+                        raise ValueError("not a list")
+                    seq = loaded
+                except Exception as e:
+                    raise TypeConversionError(field_name, "list", raw, str(e)) from e
+            else:
+                try:
+                    # Use csv to handle quotes/escapes
+                    row = next(csv.reader([s]))
+                    seq = row
+                except Exception as e:  # pragma: no cover - unlikely
+                    raise TypeConversionError(field_name, "list", raw, str(e)) from e
+            return [_convert_value(v, elem_t, field_name) for v in seq]
+
+    if origin in (dict,) or str(origin).endswith("typing.Dict"):
+        key_t, val_t = (get_args(base_target) or (str, Any))[:2]
+        if isinstance(raw, dict):
+            return {  # best-effort convert values; keys to str-like
+                _convert_value(k, key_t, field_name): _convert_value(v, val_t, field_name)
+                for k, v in raw.items()
+            }
+        if isinstance(raw, str):
+            s = raw.strip()
+            if s.startswith("{") and s.endswith("}"):
+                try:
+                    loaded = json.loads(s)
+                    if not isinstance(loaded, dict):
+                        raise ValueError("not a dict")
+                except Exception as e:
+                    raise TypeConversionError(field_name, "dict", raw, str(e)) from e
+                return {
+                    _convert_value(k, key_t, field_name): _convert_value(v, val_t, field_name)
+                    for k, v in loaded.items()
+                }
+            # Fallback: parse simple CSV of k=v pairs
+            pairs: dict[str, str] = {}
+            try:
+                for token in next(csv.reader([s])):
+                    if "=" in token:
+                        k, v = token.split("=", 1)
+                    elif ":" in token:
+                        k, v = token.split(":", 1)
+                    else:
+                        continue
+                    pairs[k.strip()] = v.strip()
+            except Exception as e:  # pragma: no cover - unlikely
+                raise TypeConversionError(field_name, "dict", raw, str(e)) from e
+            return {
+                _convert_value(k, key_t, field_name): _convert_value(v, val_t, field_name)
+                for k, v in pairs.items()
+            }
+
+    if isinstance(base_target, type):
+        if isinstance(raw, base_target):  # type: ignore[arg-type]
             return raw
 
     return raw
@@ -109,5 +202,13 @@ def issubclass_safe(cls: Any, base: type) -> bool:
     """Like ``issubclass`` but guards against non-type inputs."""
     try:
         return isinstance(cls, type) and issubclass(cls, base)
+    except Exception:
+        return False
+
+
+def _is_secret_origin(t: Any) -> bool:
+    """Return True if annotation ``t`` is Secret[...] or Secret."""
+    try:
+        return t is Secret or get_origin(t) is Secret
     except Exception:
         return False

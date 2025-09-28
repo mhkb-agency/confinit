@@ -10,12 +10,12 @@ Key function
 from __future__ import annotations
 
 from dataclasses import MISSING, Field, fields, is_dataclass
-from typing import Any, Dict, Iterable, Tuple, Type, TypeVar, get_type_hints, cast
+from typing import Any, Dict, Iterable, Tuple, Type, TypeVar, get_type_hints, cast, get_origin
 
 from .convert import _convert_value
 from .errors import ConfinitError, MissingValue, TypeConversionError
 from .sources import dotenv, env, file
-from .types import SourceInfo
+from .types import SourceInfo, Secret
 
 Collect = Dict[str, Tuple[Any, SourceInfo]]
 T = TypeVar("T")
@@ -76,11 +76,24 @@ def load(schema: Type[T], sources: Iterable[object] | None = None) -> T:
             except TypeConversionError:
                 provenance[f.name] = info
                 raise
-            provenance[f.name] = info
+            # Mask secrets in provenance raw_value
+            target = type_hints.get(f.name, f.type)
+            if _is_secret_annotation(target):
+                provenance[f.name] = SourceInfo(
+                    kind=info.kind, layer=info.layer, path=info.path, raw_value="***"
+                )
+            else:
+                provenance[f.name] = info
         else:
             if f.default is not MISSING or f.default_factory is not MISSING:  # type: ignore[attr-defined]
+                target = type_hints.get(f.name, f.type)
+                raw_default = (
+                    "(factory)" if f.default is MISSING else f.default
+                )
+                if _is_secret_annotation(target):
+                    raw_default = "***"
                 provenance[f.name] = SourceInfo(
-                    kind="default", layer=99, path=None, raw_value=f.default
+                    kind="default", layer=99, path=None, raw_value=raw_default
                 )
             else:
                 raise MissingValue(f.name, source_chain=source_names)
@@ -97,3 +110,10 @@ def _iter_fields(schema: object) -> Iterable[Field[Any]]:
     type. Uses a local cast to keep static analyzers satisfied.
     """
     return fields(cast(Any, schema))
+
+
+def _is_secret_annotation(target: Any) -> bool:
+    try:
+        return target is Secret or get_origin(target) is Secret
+    except Exception:
+        return False

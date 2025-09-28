@@ -17,8 +17,8 @@ from pathlib import Path
 import tomllib
 
 from .errors import ConfSourceError, ConfinitError, MissingValue, TypeConversionError
-from .types import SourceInfo
-from .sources import env, dotenv, file
+from .types import SourceInfo, Secret, Decoder
+from .sources import env, dotenv, file, cli
 from .loader import load
 
 __all__ = [
@@ -30,11 +30,14 @@ __all__ = [
     "env",
     "dotenv",
     "file",
+    "cli",
     "ConfinitError",
     "MissingValue",
     "TypeConversionError",
     "ConfSourceError",
     "SourceInfo",
+    "Secret",
+    "Decoder",
 ]
 
 
